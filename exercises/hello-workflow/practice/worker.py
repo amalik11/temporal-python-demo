@@ -12,7 +12,7 @@ async def main():
     worker = Worker(
         # TODO: modify the statement below to specify the task queue name
         client,
-        task_queue="TODO",
+        task_queue="greeting-task-amalik",
         workflows=[GreetSomeone],
     )
     print("Starting worker...")
