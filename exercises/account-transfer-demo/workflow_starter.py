@@ -1,36 +1,46 @@
 import logging
 import asyncio
+from temporalio import workflow , activity
+import asyncio
 import shared 
-from temporalio import workflow
+import json
+from temporalio.client import Client
+from temporalio.worker import Worker
+from workflow import MoneyTransferWorkflow
+from activity_def import  Withdraw,Deposit,Refund
 
-from temporal.activity import Activity
-from temporal.workerfactory import WorkerFactory
-from temporal.workflow import workflow_method, WorkflowClient
-import money_transfer_project_template_go.app as app
-
-async def start_workflow():
+async def main():
     logging.basicConfig(level=logging.INFO)
+    client = await Client.connect("localhost:7233")
+    input_data = shared.PaymentDetails(source_account="12345", target_account="67890", amount=50, reference_id="PAY12345")
+    # Convert PaymentDetails to a dictionary
+    ##payment_dict = shared.PaymentDetails.to_dict(input_data)
 
-    async with WorkflowClient() as client:
-        input_data = {
-            "SourceAccount": "85-150",
-            "TargetAccount": "43-812",
-            "Amount": 250,
-            "ReferenceID": "12345",
-        }
-        options = app.MoneyTransferWorkflowImplOptions(task_queue=shared.MoneyTransferTaskQueueName)
+    # Serialize the dictionary to JSON
+    json_string = json.dumps(input_data)
+    ##options = MoneyTransferWorkflow()
         
-        logging.info(f"Starting transfer from account {input_data['SourceAccount']} to account {input_data['TargetAccount']} for {input_data['Amount']}")
+    ##logging.info(f"Starting transfer from account {input_data['source_account']} to account {input_data['target_account']} for {input_data['amount']}")
 
-        workflow_execution = await client.execute_workflow(app.MoneyTransferWorkflowImpl, input_data, options=options)
-        
-        logging.info(f"WorkflowID: {workflow_execution.workflow_id} RunID: {workflow_execution.run_id}")
+    ##workflow_execution = await client.execute_workflow(MoneyTransferWorkflow.run, input_data, id= "pay-invoice-701", task_queue=shared.MoneyTransferTaskQueueName)   
+    ##logging.info(f"WorkflowID: {workflow_execution.workflow_id} RunID: {workflow_execution.run_id}")
+    async with Worker(
+        client,
+        task_queue="TRANSFER_MONEY_TASK_QUEUE",
+        workflows=[MoneyTransferWorkflow],
+        activities=[Withdraw,Deposit,Refund],
+    ):
 
-        result = await workflow_execution.result()
-
-        logging.info(result)
-
+        # While the worker is running, use the client to run the workflow and
+        # print out its result. Note, in many production setups, the client
+        # would be in a completely separate process from the worker.
+        result = await client.execute_workflow(
+            MoneyTransferWorkflow.run,
+            json_string,
+            id="pay-invoice-701",
+            task_queue=shared.MoneyTransferTaskQueueName,
+            
+        )
+        print(f"Result: {result}")
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(start_workflow())
-    loop.close()
+    asyncio.run(main())
