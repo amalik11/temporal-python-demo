@@ -7,3 +7,11 @@ class PaymentDetails:
         self.TargetAccount = target_account
         self.Amount = amount
         self.ReferenceID = reference_id
+    def to_dict(self):
+        return {
+            "SourceAccount": self.SourceAccount,
+            "TargetAccount": self.TargetAccount,
+            "Amount": self.Amount,
+            "ReferenceID": self.ReferenceID
+        }
+
