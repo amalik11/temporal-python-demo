@@ -1,9 +1,14 @@
 import time
-from temporalio import activity, workflow, retry_policy
+import datetime
+import shared
+import activity_def
+from temporalio import activity, workflow
+from temporalio.common import RetryPolicy
+@workflow.defn(name="MoneyTransferWorkflow")
 class MoneyTransferWorkflow:
-    @workflow.money_transfer
-    async def money_transfer(cls, input: PaymentDetails) -> str:
-        retrypolicy = retry_policy(
+    @workflow.run
+    async def run(cls, input: shared.PaymentDetails) -> str:
+        retrypolicy = RetryPolicy(
             initial_interval=datetime.timedelta(seconds=1),
             backoff_coefficient=2.0,
             maximum_interval=datetime.timedelta(seconds=100),
@@ -11,23 +16,23 @@ class MoneyTransferWorkflow:
             non_retryable_error_types={"InvalidAccountError", "InsufficientFundsError"}
         )
         
-        options = Workflow.ActivityOptions(
+        options = workflow.ActivityOptions(
             start_to_close_timeout=datetime.timedelta(minutes=1),
             retry_policy=retrypolicy
         )
         
-        ctx = Workflow.new_activity_context(options=options)
+        ctx = workflow.new_activity_context(options=options)
         
         try:
-            withdraw_output = await ctx.execute_activity(Withdraw, input)
+            withdraw_output = await ctx.execute_activity(activity_def.Withdraw, input)
         except Exception as withdraw_err:
             return str(withdraw_err)
         
         try:
-            deposit_output = await ctx.execute_activity(Deposit, input)
+            deposit_output = await ctx.execute_activity(activity_def.Deposit, input)
         except Exception as deposit_err:
             try:
-                result = await ctx.execute_activity(Refund, input)
+                result = await ctx.execute_activity(activity_def.RefundRefund, input)
             except Exception as refund_err:
                 return f"Deposit: failed to deposit money into {input['TargetAccount']}: {deposit_err}. Money could not be returned to {input['SourceAccount']}: {refund_err}"
             
